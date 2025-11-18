@@ -1,9 +1,10 @@
-
 import React, { useState, useCallback } from 'react';
-import { SectionData, Task } from './types';
-import { ClipboardListIcon, CheckCircleIcon, ArrowRightIcon, CodeBracketIcon } from './components/icons';
-import Header from './components/Header';
-import SectionCard from './components/SectionCard';
+import { GoogleGenAI } from "@google/genai";
+import { SectionData, Task } from './types.ts';
+import { ClipboardListIcon, CheckCircleIcon, ArrowRightIcon } from './components/icons.tsx';
+import Header from './components/Header.tsx';
+import SectionCard from './components/SectionCard.tsx';
+import BreakdownModal from './components/BreakdownModal.tsx';
 
 const initialData: SectionData[] = [
   {
@@ -43,11 +44,13 @@ const initialData: SectionData[] = [
 
 const App: React.FC = () => {
   const [sections, setSections] = useState<SectionData[]>(initialData);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [breakdown, setBreakdown] = useState<string>('');
+  const [isLoadingBreakdown, setIsLoadingBreakdown] = useState<boolean>(false);
 
   const handleToggleTask = useCallback((taskId: string) => {
     setSections(prevSections =>
       prevSections.map(section => {
-        // System updates are read-only
         if (section.type === 'update') return section;
         return {
           ...section,
@@ -58,6 +61,43 @@ const App: React.FC = () => {
       })
     );
   }, []);
+
+  const handleBreakdownRequest = useCallback(async (taskId: string) => {
+    const task = sections.flatMap(s => s.tasks).find(t => t.id === taskId);
+    if (!task) return;
+
+    setSelectedTaskId(taskId);
+    setIsLoadingBreakdown(true);
+    setBreakdown('');
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const systemInstruction = `You are a project management assistant. Break the following task into a short, actionable list of sub-tasks. Each sub-task should be on a new line, starting with a hyphen. Do not add any introductory or concluding text.`;
+      const userPrompt = `Task: "${task.text}${task.details ? ` - ${task.details}` : ''}"`;
+      
+      // FIX: Refactored the prompt to use systemInstruction for better separation of concerns and to follow Gemini API best practices.
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemInstruction,
+        },
+      });
+
+      setBreakdown(response.text);
+    } catch (error) {
+      console.error("Error generating task breakdown:", error);
+      setBreakdown("Sorry, I couldn't break down this task. Please try again.");
+    } finally {
+      setIsLoadingBreakdown(false);
+    }
+  }, [sections]);
+
+  const handleCloseModal = () => {
+    setSelectedTaskId(null);
+  };
+  
+  const selectedTask = selectedTaskId ? sections.flatMap(s => s.tasks).find(t => t.id === selectedTaskId) : null;
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col">
@@ -73,11 +113,20 @@ const App: React.FC = () => {
                 icon={section.icon}
                 tasks={section.tasks}
                 onToggleTask={handleToggleTask}
+                onBreakdownTask={handleBreakdownRequest}
               />
             ))}
           </div>
         </div>
       </main>
+      {selectedTask && (
+        <BreakdownModal
+            task={selectedTask}
+            breakdown={breakdown}
+            isLoading={isLoadingBreakdown}
+            onClose={handleCloseModal}
+        />
+      )}
       <footer className="text-center p-4 text-gray-400 text-sm">
         <p>Dashboard generated to organize project tasks and provide clarity on build objectives.</p>
         <p className="mt-1">
