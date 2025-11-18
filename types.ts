@@ -1,4 +1,4 @@
-// FIX: Import React to provide the JSX namespace and resolve the compilation error.
+// FIX: Import React to provide the JSX namespace for the `JSX.Element` type.
 import React from 'react';
 
 export interface Task {
