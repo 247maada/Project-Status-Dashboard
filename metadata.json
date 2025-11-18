@@ -1,0 +1,5 @@
+{
+  "name": "Project Status Dashboard",
+  "description": "A dashboard to visualize project status, including action plans, system updates, and next steps. Based on user-provided project details, this tool helps track progress and priorities.",
+  "requestFramePermissions": []
+}
